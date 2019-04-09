@@ -1,0 +1,4 @@
+[submodule "p0shkatz.github.io/public"]
+	path = p0shkatz.github.io/public
+	url = git@github.com:p0shkatz/p0shkatz.github.io.git
+	branch = master

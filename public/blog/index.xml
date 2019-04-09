@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Blogs on p0shkatz.github.io</title>
+    <link>https://p0shkatz.github.io/blog/</link>
+    <description>Recent content in Blogs on p0shkatz.github.io</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Fri, 01 Mar 2019 06:27:57 -0700</lastBuildDate>
+    
+	<atom:link href="https://p0shkatz.github.io/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>System.IO.File Part 2</title>
+      <link>https://p0shkatz.github.io/blog/2019/03/system.io.file-part2/</link>
+      <pubDate>Fri, 01 Mar 2019 06:27:57 -0700</pubDate>
+      
+      <guid>https://p0shkatz.github.io/blog/2019/03/system.io.file-part2/</guid>
+      <description>System.IO.File Part 2 - Disk Filler plus more
+This is the second part of my System.IO.File series. This one is even more basic than part 1 (FileSystemWatcher). As pentesters/bug hunters we regularly break things, intentionally or not. Fortunately for me, this one was intentional.
+The history on this discovery stemmed from some other work where I needed to test an exfiltration method. The problem was I didn&amp;rsquo;t have any large files to use.</description>
+    </item>
+    
+    <item>
+      <title>System.IO.File Part 1</title>
+      <link>https://p0shkatz.github.io/blog/2019/01/system.io.file-part1/</link>
+      <pubDate>Sun, 20 Jan 2019 19:21:54 -0700</pubDate>
+      
+      <guid>https://p0shkatz.github.io/blog/2019/01/system.io.file-part1/</guid>
+      <description>System.IO.File Part 1 - The FileSystemWatchers
+This is the first blog in a series where I&amp;rsquo;m going to discuss my favorite .NET class of 2018. I learned some neat tricks/techniques with the class that I thought I&amp;rsquo;d share some of my findings. None of these are overly complex. Some of these are so fundamental, their value may not be totally apparent, until used in the right context.
+For a while now, I have been intrigued with the simple capabilities of System.</description>
+    </item>
+    
+  </channel>
+</rss>

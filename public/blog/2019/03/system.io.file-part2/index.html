@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="author" content="Michael Garrison">
+    <meta name="description" content="p0shkatz&#39;s pages">
+    <meta name="keywords" content="blog,developer,infosec">
+
+    <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="System.IO.File Part 2"/>
+<meta name="twitter:description" content="System.IO.File Part 2 - Disk Filler plus more
+This is the second part of my System.IO.File series. This one is even more basic than part 1 (FileSystemWatcher). As pentesters/bug hunters we regularly break things, intentionally or not. Fortunately for me, this one was intentional.
+The history on this discovery stemmed from some other work where I needed to test an exfiltration method. The problem was I didn&rsquo;t have any large files to use."/>
+
+    <meta property="og:title" content="System.IO.File Part 2" />
+<meta property="og:description" content="System.IO.File Part 2 - Disk Filler plus more
+This is the second part of my System.IO.File series. This one is even more basic than part 1 (FileSystemWatcher). As pentesters/bug hunters we regularly break things, intentionally or not. Fortunately for me, this one was intentional.
+The history on this discovery stemmed from some other work where I needed to test an exfiltration method. The problem was I didn&rsquo;t have any large files to use." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://p0shkatz.github.io/blog/2019/03/system.io.file-part2/" />
+<meta property="article:published_time" content="2019-03-01T06:27:57-07:00"/>
+<meta property="article:modified_time" content="2019-03-01T06:27:57-07:00"/>
+
+
+    
+      <base href="https://p0shkatz.github.io/blog/2019/03/system.io.file-part2/">
+    
+    <title>
+  System.IO.File Part 2 · p0shkatz.github.io
+</title>
+
+    
+      <link rel="canonical" href="https://p0shkatz.github.io/blog/2019/03/system.io.file-part2/">
+    
+
+    <link href="https://fonts.googleapis.com/css?family=Lato:400,700%7CMerriweather:300,700%7CSource+Code+Pro:400,700" rel="stylesheet">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css" integrity="sha384-mzrmE5qonljUremFsqc01SB46JvROS7bZs3IO2EmfFsd15uHvIt+Y8vEf7N7fWAU" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css" integrity="sha256-oSrCnRYXvHG31SBifqP2PM1uje7SJUyX0nTwO2RJV54=" crossorigin="anonymous" />
+
+    
+      
+      
+      <link rel="stylesheet" href="https://p0shkatz.github.io/css/coder.min.28d751104f30c16da1aa1bb04015cbe662cacfe0d1b01af4f2240ad58580069c.css" integrity="sha256-KNdREE8wwW2hqhuwQBXL5mLKz&#43;DRsBr08iQK1YWABpw=" crossorigin="anonymous" media="screen" />
+    
+
+    
+
+    
+
+    
+
+    <link rel="icon" type="image/png" href="https://p0shkatz.github.io/images/favicon-32x32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="https://p0shkatz.github.io/images/favicon-16x16.png" sizes="16x16">
+
+    <meta name="generator" content="Hugo 0.54.0" />
+  </head>
+
+  <body class=" ">
+    <main class="wrapper">
+      <nav class="navigation">
+  <section class="container">
+    <a class="navigation-title" href="https://p0shkatz.github.io/">
+      p0shkatz.github.io
+    </a>
+    <input type="checkbox" id="menu-toggle" />
+    <label class="menu-button float-right" for="menu-toggle"><i class="fas fa-bars"></i></label>
+    <ul class="navigation-list">
+      
+        
+          <li class="navigation-item">
+            <a class="navigation-link" href="https://p0shkatz.github.io/blog/">Blog</a>
+          </li>
+        
+          <li class="navigation-item">
+            <a class="navigation-link" href="https://p0shkatz.github.io/">About</a>
+          </li>
+        
+      
+      
+    </ul>
+  </section>
+</nav>
+
+
+      <div class="content">
+        
+  <section class="container page">
+  <article>
+    <header>
+      <h1>System.IO.File Part 2</h1>
+    </header>
+
+    <p><strong>System.IO.File Part 2 - Disk Filler plus more</strong></p>
+
+<p>This is the second part of my System.IO.File series. This one is even more basic than part 1 (FileSystemWatcher). As pentesters/bug hunters we regularly break things, intentionally or not. Fortunately for me, this one was intentional.</p>
+
+<p>The history on this discovery stemmed from some other work where I needed to test an exfiltration method. The problem was I didn&rsquo;t have any large files to use. Sure, I could have looked around for some non-sensitive, benign files large enough to presumably trigger DLP controls. I had already been playing around with System.IO.File for a couple months. There was one method that I hadn&rsquo;t experimented with and I was curious what it did and how it works.</p>
+
+<p><strong>SetLength()</strong></p>
+
+<p>The SetLength method allows you to specify the number of bytes (or size or length) of a specific file stream that the current process has a write handle on. Seems practical. You can specify values such as 100 (for 100 bytes) or 1GB (for 1 Gigabyte). As soon as the SetLength method is called there is an immediate allocation for the file space. What does the space look like? Essentially just null bytes, but the file address table is allocated from disk and associated with the current file&hellip; immediately. Cool, I can use this to allocate 20 GB files to use for exfil testing and there&rsquo;s nothing sensitive so I don&rsquo;t need to worry about accidentally sending my personal info. And it&rsquo;s fast.</p>
+
+<p>At this point, I hadn&rsquo;t realized what I might be able to use this method for other than creating some test files. But then I started to wonder what depends on disk space. What would happen if there wasn&rsquo;t any disk space left? So let&rsquo;s try this:</p>
+
+<ul>
+<li>Get the available disk space from WMI</li>
+<li>Create a test file (acquire handle)</li>
+<li>SetLength to available disk space</li>
+<li>Watch what happens, what breaks</li>
+</ul>
+
+<p>Initially I didn&rsquo;t notice much. Well that&rsquo;s lame. Ok, so let&rsquo;s continuously do this with a loop. Also, WMI is slow, so let&rsquo;s use System.IO.DriveInfo.AvailableFreeSpace:</p>
+
+<ul>
+<li>Create a test file (acquire handle)</li>
+<li>While true do</li>
+<li>Get the available disk space from DriveInfo</li>
+<li>SetLength to available disk space</li>
+<li>Repeat</li>
+</ul>
+
+<p>Ok, while that&rsquo;s running, now what? Notification from Windows that I&rsquo;m low an disk space. A couple of user apps don&rsquo;t really open up right. What else? Let&rsquo;s try running this exercise as a logon script. Logging in was sort of painful. Inside the System event log there are a few indications of stuff not being happy. Random stuff. All of these products have a dependency on available disk space. Neat.</p>
+
+<p>What happens if I run this at computer startup? I replace a legitimate service binary with one that executes the above steps. This was a custom Windows service, so I&rsquo;m not sure at startup what may get executed prior to it (order of execution), but anything that starts after may struggle if the same disk availability requirement exists. After a reboot, my system is totally riding the struggle bus. Open the event viewer and see even more errors than before. This time, some significant products won&rsquo;t even start.</p>
+
+<p>So I can DoS my own box that I obviously have admin on, big deal. Let&rsquo;s go back to user mode and do some additional poking around without privileges. Oops, time for a break. When I come back, I hit CTRL+ALT+DEL to unlock my screen and I notice that not only is it asking for my password, but its also asking for my username. That&rsquo;s odd, but whatever. Next I open Internet Explorer to hit some site that requires IE for &ldquo;a better user experience&rdquo;. IE opens to the default MSN website. WTF, where&rsquo;s my home page? Hold on a sec, what&rsquo;s happening? I open event viewer once more, check the logs for suspicious errors. Certain Group Policy extensions are failing to apply. Let&rsquo;s fix that, run gpupdate /force. Reopen IE, same thing. At this point, my custom service with my SetLength loop is still running, so I kill that and replace the original binary. Gpupdate /force, reopen IE, and there we go, back to normal.</p>
+
+<p>Certain (not all presumably) Group Policy extensions require disk space to write setting values to disk (registry). The extension for IE is one of those. That&rsquo;s not super interesting because I can literally open regedit and modify those in HKEY_CurrentUser. What about that weird logon thing I saw? That setting is part of the Interactive Logon collection of settings. In fact, that is part of the Security Settings extension which are part of Computer Configuration. I quickly lock and unlock my screen only to find that the condition no longer exists. But wait, lets run the initial script as an unprivileged user to consume all available space, run gpupdae /force as an unprivileged user, and check our lock screen again. Hello missing username! So as unprivileged user, I can takeover the whole system disk and force some privileged computer settings (HKEY_LocalMachine) to get screwed up.</p>
+
+<p>So what&rsquo;s going on here? Using a privileged process, I ran gpresult before and after to try and compare what was changed. I gave up really quickly since there was a ton of settings being configured by Group Policy. Security Settings at least during Group Policy foreground processing (gpupdate <strong>/force</strong>), but possibly background processing (random intervals 90 minutes +/- 30) are all reapplied. What I hadn&rsquo;t realized is that during this processing period, all of the security settings are removed and reapplied. What happens when my script is running is that the settings are removed, my script detects free space and consumes it before the security settings can be reapplied. Even stranger, there is a value configured for some or all of these settings, but its not coming from Group Policy. So where is it coming from?</p>
+
+<p>I decided to reach out to one of my Microsoft contacts for some help in trying to understand the result. I explained the situation and he did some research on what the resulting values might be coming from. Here&rsquo;s what he found:</p>
+
+<p>&ldquo;On a non-domain joined machine, the SmTblTattoo table is blank. When the machine joins the domain and policy is initially applied, each applied setting (not Preferences) are written to the table (using the value of policy at the time of application). Any values that are not impacted by Group Policy are not written. Then, if the policy does not apply (either by making the policy out of scope, or policy processing failure), any settings in that policy are reverted. Then when policy is applied (either the same policy or a new policy that effects that setting), the policy value takes effect on the machine.&rdquo;</p>
+
+<p>So effectively what I&rsquo;ve done is reverted the Group Policy configured security settings to the initial values when the machine was first joined to the domain, which may or may not match what is currently set in Group Policy. I thought was really interesting. We brainstormed a bit on how this might be prevented, but it didn&rsquo;t seem like there was enough concern for the issue for it to be formally addressed.</p>
+
+<p>Beyond messing with Group Policy, there were definitely some other Microsoft and third party products that did not respond well to the disk availability condition. It&rsquo;s a simple trick with some simple results.</p>
+
+<p>Here&rsquo;s the script I wrote:
+<a href="https://gist.github.com/p0shkatz/f1b170acd0e9dcab6616dfe5861a8c32">https://gist.github.com/p0shkatz/f1b170acd0e9dcab6616dfe5861a8c32</a></p>
+
+  </article>
+</section>
+
+
+      </div>
+
+      <footer class="footer">
+  <section class="container">
+    
+      <p>Making and breaking it</p>
+    
+     © 2019
+    
+       · 
+      Powered by <a href="https://gohugo.io/">Hugo</a> & <a href="https://github.com/luizdepra/hugo-coder/">Coder</a>.
+    
+    
+       · 
+      [<a href="https://github.com/luizdepra/hugo-coder/tree/"></a>]
+    
+  </section>
+</footer>
+
+    </main>
+
+    
+
+  </body>
+
+</html>
