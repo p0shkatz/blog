@@ -15,7 +15,7 @@ canonifyurls = true
     keywords = "blog,developer,infosec"
     info = "Pen Testing | Red Teaming | Security Research"
     avatarurl = "images/ivv3_3ao_400x400.jpg"
-    footercontent = "Making and breaking it"
+    footercontent = "Making and breaking it, and silly observations along the way"
 
     dateformat = "January 2, 2006"
 
