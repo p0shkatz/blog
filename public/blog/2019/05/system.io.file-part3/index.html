@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="author" content="Michael Garrison">
+    <meta name="description" content="p0shkatz&#39;s pages">
+    <meta name="keywords" content="blog,developer,infosec">
+
+    <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="System.IO.File Part 3"/>
+<meta name="twitter:description" content="System.IO.File Part 3 - Write Locks
+Before I forget, I just want to call out Time Of Check to Time Of Use (TOCTOU). I had not heard of this term until the time of writing this post. That being said, this is exactly the type of condition I will be describing. Additionally, this class of vulnerability is seen way too often and typically under-exploited. These timing attacks or race conditions are usually a result of an accident by a developer and by a researcher, meaning the condition is not intentional or apparent, nor is the discovery."/>
+
+    <meta property="og:title" content="System.IO.File Part 3" />
+<meta property="og:description" content="System.IO.File Part 3 - Write Locks
+Before I forget, I just want to call out Time Of Check to Time Of Use (TOCTOU). I had not heard of this term until the time of writing this post. That being said, this is exactly the type of condition I will be describing. Additionally, this class of vulnerability is seen way too often and typically under-exploited. These timing attacks or race conditions are usually a result of an accident by a developer and by a researcher, meaning the condition is not intentional or apparent, nor is the discovery." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://p0shkatz.github.io/blog/2019/05/system.io.file-part3/" />
+<meta property="article:published_time" content="2019-04-29T21:51:06-05:00"/>
+<meta property="article:modified_time" content="2019-04-29T21:51:06-05:00"/>
+
+
+    
+      <base href="https://p0shkatz.github.io/blog/2019/05/system.io.file-part3/">
+    
+    <title>
+  System.IO.File Part 3 · p0shkatz.github.io
+</title>
+
+    
+      <link rel="canonical" href="https://p0shkatz.github.io/blog/2019/05/system.io.file-part3/">
+    
+
+    <link href="https://fonts.googleapis.com/css?family=Lato:400,700%7CMerriweather:300,700%7CSource+Code+Pro:400,700" rel="stylesheet">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css" integrity="sha384-mzrmE5qonljUremFsqc01SB46JvROS7bZs3IO2EmfFsd15uHvIt+Y8vEf7N7fWAU" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css" integrity="sha256-oSrCnRYXvHG31SBifqP2PM1uje7SJUyX0nTwO2RJV54=" crossorigin="anonymous" />
+
+    
+      
+      
+      <link rel="stylesheet" href="https://p0shkatz.github.io/css/coder.min.28d751104f30c16da1aa1bb04015cbe662cacfe0d1b01af4f2240ad58580069c.css" integrity="sha256-KNdREE8wwW2hqhuwQBXL5mLKz&#43;DRsBr08iQK1YWABpw=" crossorigin="anonymous" media="screen" />
+    
+
+    
+
+    
+
+    
+
+    <link rel="icon" type="image/png" href="https://p0shkatz.github.io/images/favicon-32x32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="https://p0shkatz.github.io/images/favicon-16x16.png" sizes="16x16">
+
+    <meta name="generator" content="Hugo 0.55.3" />
+  </head>
+
+  <body class=" ">
+    <main class="wrapper">
+      <nav class="navigation">
+  <section class="container">
+    <a class="navigation-title" href="https://p0shkatz.github.io/">
+      p0shkatz.github.io
+    </a>
+    <input type="checkbox" id="menu-toggle" />
+    <label class="menu-button float-right" for="menu-toggle"><i class="fas fa-bars"></i></label>
+    <ul class="navigation-list">
+      
+        
+          <li class="navigation-item">
+            <a class="navigation-link" href="https://p0shkatz.github.io/blog/">Blog</a>
+          </li>
+        
+          <li class="navigation-item">
+            <a class="navigation-link" href="https://p0shkatz.github.io/">About</a>
+          </li>
+        
+      
+      
+    </ul>
+  </section>
+</nav>
+
+
+      <div class="content">
+        
+  <section class="container page">
+  <article>
+    <header>
+      <h1>System.IO.File Part 3</h1>
+    </header>
+
+    <p><strong>System.IO.File Part 3 - Write Locks</strong></p>
+
+<p>Before I forget, I just want to call out Time Of Check to Time Of Use (<a href="https://en.wikipedia.org/wiki/Time_of_check_to_time_of_use">TOCTOU</a>). I had not heard of this term until the time of writing this post. That being said, this is exactly the type of condition I will be describing. Additionally, this class of vulnerability is seen way too often and typically under-exploited. These timing attacks or race conditions are usually a result of an accident by a developer and by a researcher, meaning the condition is not intentional or apparent, nor is the discovery. This is why many of these types of bugs are found accidentally. I have been fortunate enough to (accidentally or not) find some accidental bugs. The story behind some of them will have to wait until another time.</p>
+
+<p>The third and hopefully not last installment of playing with System.IO.File has to do with my first post <a href="https://p0shkatz.github.io/blog/2019/01/System.IO.File-Part1">System.IO.File-Part 1</a>. Once I identified the issue and someone to help fix it, I was asked to test the solution to the original problem. The original problem was that files that were executed by a process running as NT AUTHORITY\LOCAL SYSTEM could be written to by any Authenticated User, an obvious Access Control List (ACL) issue. The solution because of other limitations and/or unknown consequences was to replace the original identity (AU) with the CREATOR OWNER principal as part of the new ACL. This solution seemed promising from both a defensive and offensive standpoint. From a defense standpoint, only the creator of a file system object could modify it. From an offense standpoint, Users still have the ability to create objects (wink, wink).</p>
+
+<p>So here was the problem. This privileged service was creating file objects and executing them. I wanted to replace one of them with my custom executable. My previous exploit was not working now because LOCAL SYSTEM is the owner of the file and my FileSystemWatcher cannot beat the new ACL. Instead, I prepopulated the expected file structure and target binary. That makes me the owner. Cool! Wait a sec, prepopulated? The application that I am abusing with this and my Part 1 post is a client application responsible for communicating with a privileged service that does privileged things. As a mature service, everything it does is logged using a custom and verbose logging facility. In order to find a binary that was potentially susceptible to this new condition I suspected was present, I wrote a quick script to parse the logs.</p>
+
+<p><strong>TIP</strong>: Logging can work against an adversary. Logging can also work against a defender.</p>
+
+<p>So, once the objects are there, I executed the normal process which invoked the privileged service. Unfortunately, the LOCAL SYSTEM account just overwrote my binary. Continuing on down this path, I reviewed the ACL to see how my user principal and my token could fit into this picture. As I mentioned, Users still had the ability to create new file and folder objects in the root directory. The problem is that SYSTEM is overwriting them. My next attempt was to restrict Write or Modify permissions to only my account. Unfortunately how the Users access control entry was configured did not allow me to change permissions on a file.</p>
+
+<p>I had a thought&hellip; but had no clue. What if I (as the OWNER) do not allow anyone to touch my stuff? Is that possible, is that a thing that would even prevent SYSTEM from overriding? Using the principal of &ldquo;exclusive lock&rdquo; or &ldquo;write lock&rdquo;, I prepopulated the target binary and did the following:</p>
+
+<p><code>$fileStream = [System.IO.File]::Open(&quot;C:\path\to\file.ext&quot;, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)</code></p>
+
+<p>What does this do? The opens a handle to the target file with write access and declines this or other processes from accessing the file (including read access). This is our exclusive or write lock mechanism. My first assumption is that an exclusive lock would not prevail between an unprivileged process that holds the lock and a privileged process running as LOCAL SYSTEM. I quickly found out, this is not the case. My assumption is that by design, LOCAL SYSTEM will not interfere with user processes that require this type of file management to prevent corruption or to maintain application stability.</p>
+
+<p>This is where things got somewhat problematic. I did not want the installer to overwrite (W/M) my binary, but I did want it to execute (R/E) it. This means that the initial write had to be prevented, but the subsequent request to read and execute the file had to be permitted. One way to do that is monitor for that specific file access request from LOCAL SYSTEM. At this point, I did not have the ability to monitor those calls since I had not escalated my privileges. Long story short, I guessed. I viewed the timing that was stored in the logs of previous executions. Based on that I grabbed the write lock, executed the application, and slept while grepping the log for a string that indicated it was about to attempt the execution of the binary. While monitoring my script as well as running processes, I could tell I missed the window.</p>
+
+<p>I&rsquo;d like to tell you that I found some precise method of determining the exact time to release the exclusive lock, but I can&rsquo;t. There was a lot of trial and error. Using the log data and slight adjustments to how I was tailing the log, I was able to reproduce it every time. Sorry if the timing thing seems a bit odd. It was odd, but reliable.</p>
+
+<p>Check out my script on the following gist:</p>
+
+<p><a href="https://gist.github.com/p0shkatz/706f28783bd0358386f1770aa9e445e9">https://gist.github.com/p0shkatz/706f28783bd0358386f1770aa9e445e9</a></p>
+
+<p><strong>Additional research</strong></p>
+
+<p>I had not seen this research on file locks until after I used this technique, but I wanted to call out some previous research that covers this topic much more elegantly than I do. Check out the following for a deeper dive into the subject:</p>
+
+<p>@clavoillotte - <a href="https://offsec.provadys.com/intro-to-file-operation-abuse-on-Windows.html">https://offsec.provadys.com/intro-to-file-operation-abuse-on-Windows.html</a></p>
+
+  </article>
+</section>
+
+
+      </div>
+
+      <footer class="footer">
+  <section class="container">
+    
+      <p>Making and breaking it, and silly observations along the way</p>
+    
+     © 2019
+    
+       · 
+      Powered by <a href="https://gohugo.io/">Hugo</a> & <a href="https://github.com/luizdepra/hugo-coder/">Coder</a>.
+    
+    
+       · 
+      [<a href="https://github.com/luizdepra/hugo-coder/tree/"></a>]
+    
+  </section>
+</footer>
+
+    </main>
+
+    
+
+  </body>
+
+</html>

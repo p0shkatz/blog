@@ -6,10 +6,20 @@
     <description>Recent content on p0shkatz.github.io</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 01 Mar 2019 06:27:57 -0700</lastBuildDate>
+    <lastBuildDate>Mon, 29 Apr 2019 21:51:06 -0500</lastBuildDate>
     
 	<atom:link href="https://p0shkatz.github.io/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>System.IO.File Part 3</title>
+      <link>https://p0shkatz.github.io/blog/2019/05/system.io.file-part3/</link>
+      <pubDate>Mon, 29 Apr 2019 21:51:06 -0500</pubDate>
+      
+      <guid>https://p0shkatz.github.io/blog/2019/05/system.io.file-part3/</guid>
+      <description>System.IO.File Part 3 - Write Locks
+Before I forget, I just want to call out Time Of Check to Time Of Use (TOCTOU). I had not heard of this term until the time of writing this post. That being said, this is exactly the type of condition I will be describing. Additionally, this class of vulnerability is seen way too often and typically under-exploited. These timing attacks or race conditions are usually a result of an accident by a developer and by a researcher, meaning the condition is not intentional or apparent, nor is the discovery.</description>
+    </item>
     
     <item>
       <title>System.IO.File Part 2</title>
